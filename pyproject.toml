@@ -1,0 +1,21 @@
+[project]
+name = "custom-dictionary"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Tobias Verweij", email = "tobiasverweij2309@gmail.com" }
+]
+requires-python = ">=3.15"
+dependencies = [
+    "numpy>=2.5.4",
+    "rich>=15.0.0",
+    "typer>=0.28.0",
+]
+
+[project.scripts]
+custom-dictionary = "custom_dictionary:main"
+
+[build-system]
+requires = ["uv_build>=0.13.7,<0.14.0"]
+build-backend = "uv_build"
