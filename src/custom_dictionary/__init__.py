@@ -15,7 +15,8 @@ from romaji_to_kana import romaji_to_kana
 console = Console()
 
 ### ======== Paths =========== ###
-DATA_DIR = Path(__file__).resolve().parent
+DATA_DIR = Path.home() / "Library" / "Application Support" / "custom-dictionary"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 SOURCE = DATA_DIR / "jmdict-eng.json"
 RELEASES_API = "https://api.github.com/repos/scriptin/jmdict-simplified/releases/latest"
 
