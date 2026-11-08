@@ -1,12 +1,23 @@
 import json
+import urllib.request
+import zipfile
+from collections import defaultdict
+from pathlib import Path
 from typing import TypedDict
+
 import typer
-from romaji_to_kana import romaji_to_kana
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
+from romaji_to_kana import romaji_to_kana
+
 console = Console()
+
+### ======== Paths =========== ###
+DATA_DIR = Path(__file__).resolve().parent
+SOURCE = DATA_DIR / "jmdict-eng.json"
+RELEASES_API = "https://api.github.com/repos/scriptin/jmdict-simplified/releases/latest"
 
 ### ======== Typeddicts =========== ###
 class Gloss(TypedDict):
@@ -60,8 +71,59 @@ def check_type(ch: str) -> str:
     if ch.isascii() and ch.isalpha():
         return "Romaji"
 
+
+def download_source() -> None:
+    print("Downloading JMdict (first run only)...")
+    request = urllib.request.Request(RELEASES_API, headers={"User-Agent": "custom-dictionary"})
+    with urllib.request.urlopen(request) as response:
+        release = json.load(response)
+
+    asset = next(
+        a for a in release["assets"]
+        if a["name"].startswith("jmdict-eng-") and "common" not in a["name"] and a["name"].endswith(".json.zip")
+    )
+    zip_path = DATA_DIR / asset["name"]
+    urllib.request.urlretrieve(asset["browser_download_url"], zip_path)
+
+    with zipfile.ZipFile(zip_path) as z:
+        member = next(n for n in z.namelist() if n.endswith(".json"))
+        z.extract(member, DATA_DIR)
+    (DATA_DIR / member).replace(SOURCE)
+    zip_path.unlink()
+
+
+def build_index(words: list[Word], key: str) -> defaultdict[str, list[Word]]:
+    index: defaultdict[str, list[Word]] = defaultdict(list)
+    for word in words:
+        seen: set[str] = set()
+        for form in word[key]:
+            if form["text"] not in seen:
+                seen.add(form["text"])
+                index[form["text"]].append(word)
+    return index
+
+
+def ensure_data() -> None:
+    if (DATA_DIR / "Kana.json").exists() and (DATA_DIR / "Kanji.json").exists():
+        return
+    if not SOURCE.exists():
+        download_source()
+
+    print("Building lookup files (first run only)...")
+    with open(SOURCE, encoding="utf-8") as f:
+        data = JMDict(json.load(f))
+
+    for key in ("kana", "kanji"):
+        index = build_index(data["words"], key)
+        with open(DATA_DIR / f"{key.capitalize()}.json", "w", encoding="utf-8") as f:
+            json.dump(index, f, ensure_ascii=False)
+    print("Done.")
+
+
 ### =========== main =========
 def main():
+    ensure_data()
+
     while True:
         word = input("> ").strip()
         if not word:
@@ -75,7 +137,7 @@ def main():
             word = romaji_to_kana(word)
             kind = "Kana"
 
-        with open(f"/Users/tobiasverweij/Developer/custom-dictionary/src/custom_dictionary/{kind}.json", encoding="utf-8") as f:
+        with open(DATA_DIR / f"{kind}.json", encoding="utf-8") as f:
             data = json.load(f)
 
         entry = data.get(word) or []
@@ -100,7 +162,6 @@ def main():
 
                 console.print(Panel(body, border_style="blue"))
 
-                
 
 if __name__ == "__main__":
     typer.run(main)
